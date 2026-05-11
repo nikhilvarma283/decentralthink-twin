@@ -339,6 +339,7 @@ decentralthink-twin/
 │   │   ├── ingest.js          Unified ingest API (file/url/text/batch) + anti-enhancement gate
 │   │   ├── onboarding.js      5-step onboarding REST API + sandbox endpoint
 │   │   ├── billing.js         Pricing, earnings, access grants
+│   │   ├── integrations.js    OAuth, email, calendar, draft review queue (22 endpoints)
 │   │   ├── mcp.js             MCP HTTP + SSE transport, registry, well-known discovery
 │   │   ├── documents.js       Document management + provenance
 │   │   ├── query.js           Twin query endpoint (with billing gate + grant check)
@@ -364,6 +365,11 @@ decentralthink-twin/
 │   │       └── github.js      GitHub repo (README, commits, docs)
 │   ├── billing/
 │   │   └── x402.js            x402 billing gate, pricing CRUD, earnings/usage tracking
+│   ├── integrations/
+│   │   ├── oauth.js           OAuth2 token manager (Google + Microsoft, auto-refresh, vault storage)
+│   │   ├── gmail.js           Gmail inbox, thread fetch, draft reply/new, Google Calendar
+│   │   ├── outlook.js         Outlook inbox, thread fetch, draft reply/new, Outlook Calendar
+│   │   └── drafts.js          Review queue — pending_review → approved | rejected
 │   ├── mcp/
 │   │   ├── server.js          JSON-RPC 2.0 MCP server (initialize/tools/list/tools/call)
 │   │   └── tools.js           Tool definitions + JSON Schema (4 tools)
@@ -404,6 +410,13 @@ decentralthink-twin/
 | `ALGORAND_INDEXER` | No | Algorand indexer URL (default: testnet AlgoNode) |
 | `ONBOARDING_MIN_DOCS` | No | Min docs before advancing from Step 2 (default: `3`) |
 | `ONBOARDING_MIN_WORDS` | No | Min words before advancing from Step 2 (default: `500`) |
+| `GOOGLE_CLIENT_ID` | For Gmail | Google OAuth2 client ID |
+| `GOOGLE_CLIENT_SECRET` | For Gmail | Google OAuth2 client secret |
+| `GOOGLE_REDIRECT_URI` | For Gmail | OAuth callback URL (default: `http://localhost:3002/api/v1/integrations/gmail/callback`) |
+| `MICROSOFT_CLIENT_ID` | For Outlook | Microsoft app client ID |
+| `MICROSOFT_CLIENT_SECRET` | For Outlook | Microsoft app client secret |
+| `MICROSOFT_TENANT_ID` | For Outlook | Azure tenant ID (default: `common`) |
+| `MICROSOFT_REDIRECT_URI` | For Outlook | OAuth callback URL |
 
 ---
 
@@ -563,15 +576,35 @@ combining their answers into a cross-expert response without paying for 8 useles
 
 ---
 
-### 🔜 Sprint 8 — Email & Calendar Integration
-*Planned*
+### ✅ Sprint 8 — Email & Calendar Integration
+*Completed: May 2026*
 
-**Planned:**
-- Gmail/Outlook OAuth (read-only by default)
-- Draft emails in the twin owner's voice
-- Review queue before sending
-- Calendar awareness: check availability, prep briefing docs
-- Post-meeting: auto-draft follow-up emails from notes
+**Built:**
+- `src/integrations/oauth.js` — OAuth2 token manager for both providers:
+  - Full lifecycle: auth URL → code exchange → auto-refresh → revocation
+  - CSRF protection via one-time state tokens stored in Core Vault
+  - Tokens encrypted in Core Sovereign Vault (never plaintext at rest)
+- `src/integrations/gmail.js` — Gmail + Google Calendar:
+  - Read inbox (filter by unread, Gmail search syntax)
+  - Fetch full conversation threads
+  - `draftReply()` — RAG-augmented reply in owner's voice
+  - `draftNewEmail()` — compose from scratch given a brief
+  - `getUpcomingEvents()` — Google Calendar next N days
+  - `checkAvailability()` — free/busy check for a time range
+  - `generateMeetingBriefing()` — RAG over owner's knowledge for pre-meeting prep
+  - `draftFollowUpEmails()` — post-meeting follow-ups from notes/transcript
+- `src/integrations/outlook.js` — Outlook Mail + Calendar (Microsoft Graph v1.0):
+  - Identical API surface as Gmail module (swap provider, same twin logic)
+  - Uses `/me/calendarView` for events, `/me/getSchedule` for availability
+- `src/integrations/drafts.js` — Review queue:
+  - All generated emails stored as drafts: `pending_review → approved | rejected`
+  - `approveDraft()` accepts optional body edits before approval
+  - Full lifecycle audit-logged on Algorand
+  - **Twin never sends email autonomously — hard invariant enforced here**
+- `src/api/v1/integrations.js` — 22 REST endpoints covering OAuth, email, calendar, drafts
+- New env vars: `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`, `MICROSOFT_CLIENT_ID/SECRET/REDIRECT_URI/TENANT_ID`
+
+**Core primitives used:** Sovereign Vault (OAuth tokens, draft storage), Blockchain Audit (all draft lifecycle events)
 
 ---
 

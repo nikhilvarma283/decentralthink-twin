@@ -12,6 +12,7 @@ import ingestRouter from './api/v1/ingest.js';
 import onboardingRouter from './api/v1/onboarding.js';
 import billingRouter from './api/v1/billing.js';
 import mcpRouter from './api/v1/mcp.js';
+import integrationsRouter from './api/v1/integrations.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -71,7 +72,8 @@ app.use('/api/v1/style',      styleRouter);
 app.use('/api/v1/ingest',     ingestRouter);
 app.use('/api/v1/onboarding', onboardingRouter);
 app.use('/api/v1/billing',    billingRouter);
-app.use('/api/v1/mcp',        mcpRouter);
+app.use('/api/v1/mcp',          mcpRouter);
+app.use('/api/v1/integrations', integrationsRouter);
 
 // ─── MCP well-known discovery (standard path for MCP clients) ─────────────────
 // Agents can check https://twin.decentralthink.com/.well-known/mcp to get
