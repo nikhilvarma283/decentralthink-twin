@@ -11,6 +11,7 @@ import styleRouter from './api/v1/style.js';
 import ingestRouter from './api/v1/ingest.js';
 import onboardingRouter from './api/v1/onboarding.js';
 import billingRouter from './api/v1/billing.js';
+import mcpRouter from './api/v1/mcp.js';
 
 const app = express();
 const PORT = process.env.PORT || 3002;
@@ -69,12 +70,25 @@ app.use('/api/v1/query',      queryRouter);
 app.use('/api/v1/style',      styleRouter);
 app.use('/api/v1/ingest',     ingestRouter);
 app.use('/api/v1/onboarding', onboardingRouter);
-app.use('/api/v1/billing',   billingRouter);
+app.use('/api/v1/billing',    billingRouter);
+app.use('/api/v1/mcp',        mcpRouter);
+
+// ─── MCP well-known discovery (standard path for MCP clients) ─────────────────
+// Agents can check https://twin.decentralthink.com/.well-known/mcp to get
+// the list of available twins.
+app.get('/.well-known/mcp', (req, res) => {
+  res.json({
+    registry:  `${req.protocol}://${req.get('host')}/api/v1/mcp/registry`,
+    protocol:  'MCP 2025-03-26',
+    transport: 'http+sse',
+  });
+});
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
   logger.info({ port: PORT }, 'DecentralThink Twin API started');
   logger.info({ coreUrl: process.env.CORE_API_URL }, 'Connected to DecentralThink Core');
+  logger.info({ mcpRegistry: `http://localhost:${PORT}/api/v1/mcp/registry` }, 'MCP agent interface active');
 });
 
 export default app;

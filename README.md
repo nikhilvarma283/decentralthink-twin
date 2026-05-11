@@ -189,6 +189,36 @@ All endpoints under `/api/v1/`. Auth via headers:
 | `/api/v1/style` | GET | Get current fingerprint |
 | `/api/v1/style` | PUT | Manually adjust fingerprint |
 
+### MCP Agent Interface
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/.well-known/mcp` | GET | Standard discovery — points agents to the registry |
+| `/api/v1/mcp/registry` | GET | List all live twins with their MCP endpoints |
+| `/api/v1/mcp/:twinId` | GET | Twin discovery — server info + Claude Desktop config |
+| `/api/v1/mcp/:twinId` | POST | JSON-RPC 2.0 transport (`initialize`, `tools/list`, `tools/call`) |
+| `/api/v1/mcp/:twinId/sse` | GET | SSE stream for MCP clients that prefer streaming transport |
+
+**Claude Desktop setup** (from the discovery response):
+```json
+{
+  "mcpServers": {
+    "dr-varma-twin": {
+      "url": "https://twin.decentralthink.com/api/v1/mcp/twin_abc123",
+      "transport": "http"
+    }
+  }
+}
+```
+
+**MCP tools available on every twin:**
+| Tool | Billed? | Description |
+|---|---|---|
+| `get_twin_capabilities` | Free | Domains, style, Soul Token, access policy |
+| `get_twin_pricing` | Free | Price per query, free tier |
+| `check_knowledge_boundary` | Free | Probe topic relevance before paying |
+| `query_twin` | Yes (after free tier) | Full RAG answer in owner's voice |
+
 ### Billing & Access
 
 | Endpoint | Method | Auth | Description |
@@ -309,6 +339,7 @@ decentralthink-twin/
 │   │   ├── ingest.js          Unified ingest API (file/url/text/batch) + anti-enhancement gate
 │   │   ├── onboarding.js      5-step onboarding REST API + sandbox endpoint
 │   │   ├── billing.js         Pricing, earnings, access grants
+│   │   ├── mcp.js             MCP HTTP + SSE transport, registry, well-known discovery
 │   │   ├── documents.js       Document management + provenance
 │   │   ├── query.js           Twin query endpoint (with billing gate + grant check)
 │   │   └── style.js           Style fingerprint API
@@ -333,6 +364,9 @@ decentralthink-twin/
 │   │       └── github.js      GitHub repo (README, commits, docs)
 │   ├── billing/
 │   │   └── x402.js            x402 billing gate, pricing CRUD, earnings/usage tracking
+│   ├── mcp/
+│   │   ├── server.js          JSON-RPC 2.0 MCP server (initialize/tools/list/tools/call)
+│   │   └── tools.js           Tool definitions + JSON Schema (4 tools)
 │   ├── onboarding/
 │   │   └── flow.js            5-step state machine (persisted in Core Vault)
 │   ├── soultoken/
@@ -497,15 +531,35 @@ decentralthink-twin/
 
 ---
 
-### 🔜 Sprint 7 — MCP Agent-to-Agent Interface
-*Planned*
+### ✅ Sprint 7 — MCP Agent-to-Agent Interface
+*Completed: May 2026*
 
-**Planned:**
-- Model Context Protocol endpoint for agent-to-agent queries
-- Same boundary and consent rules apply
-- MCP tool definitions published to Core's ZK Marketplace
-- Composite workflows: query multiple twins, combine responses
-- Example: "Ask Dr. Varma's twin about architecture → ask legal twin about compliance → generate report"
+**Built:**
+- `src/mcp/tools.js` — 4 MCP tool definitions (JSON Schema validated):
+  - `query_twin` — full pipeline: grant check → billing gate → RAG → style-guided answer
+  - `check_knowledge_boundary` — probe topic relevance without consuming a query or billing
+  - `get_twin_capabilities` — knowledge domains, style summary, Soul Token, access policy
+  - `get_twin_pricing` — price per query, free tier, currency
+- `src/mcp/server.js` — JSON-RPC 2.0 MCP server core:
+  - Handles: `initialize`, `ping`, `tools/list`, `tools/call` (batch + single)
+  - `initialize` returns server instructions briefing the agent on how to use the twin
+  - All tool calls enforce the same pipeline as the REST endpoint (grants, billing, boundary)
+  - Payment-required tools return structured x402 error with paymentUrl so agent can pay and retry
+- `src/api/v1/mcp.js` — HTTP + SSE transport layer:
+  - `GET  /api/v1/mcp/:twinId` — discovery: server info + Claude Desktop config snippet
+  - `POST /api/v1/mcp/:twinId` — JSON-RPC 2.0 main transport (supports SSE streaming)
+  - `GET  /api/v1/mcp/:twinId/sse` — SSE keepalive stream with 30s ping + endpoint event
+  - `GET  /api/v1/mcp/registry` — list all live twins (for agent discovery)
+  - `GET  /.well-known/mcp` — standard discovery path
+- Twin registry resolved from Core Vault (onboarding state), cached in-memory
+- Claude Desktop config auto-generated in discovery response for easy setup
+
+**Composite workflow example:**
+An orchestrating agent calls `check_knowledge_boundary` on 10 twins simultaneously (free),
+identifies the 2 with relevant knowledge, then calls `query_twin` on only those 2 —
+combining their answers into a cross-expert response without paying for 8 useless queries.
+
+**Core primitives used:** Sovereign Vault (twin registry, style fingerprint), x402 Payments, Blockchain Audit
 
 ---
 
