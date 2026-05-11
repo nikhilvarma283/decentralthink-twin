@@ -558,7 +558,7 @@ This product implements architecture described in a provisional patent filed Feb
 **Dr. Nikhil Varma**  
 Founder, DecentralThink  
 Associate Professor, Ramapo College of New Jersey  
-Former Head of Ecosystem Success (India), Algorand Foundation  
+Head of Ecosystem Success (India), Algorand Foundation  
 Author, *Blockchain Capitalism*  
 [decentralthink.com](https://decentralthink.com) · [LinkedIn](https://www.linkedin.com/company/decentralailabs)
 
